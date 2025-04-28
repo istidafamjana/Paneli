@@ -1,43 +1,47 @@
-from flask import Flask, jsonify
+from flask import Flask, request, jsonify
+import requests
 import json
-import asyncio
-import aiohttp
+from datetime import datetime
 
 app = Flask(__name__)
 
-# بيانات Cloudinary
+# بيانات Cloudinary (استبدل هذه القيم بمعلومات حسابك)
 CLOUDINARY_CLOUD_NAME = "duu2fy7bq"
+CLOUDINARY_API_KEY = "459654532934462"  # استبدل بمفتاح API الخاص بك
+CLOUDINARY_API_SECRET = "WMWrndmiqcot_20p0rc50odjPTw"  # استبدل بالسر الخاص بك
+CLOUDINARY_URL = f"https://res.cloudinary.com/{CLOUDINARY_CLOUD_NAME}/raw/upload/v1/keys/ky.txt"
 
-# تنزيل الملف من Cloudinary (غير متزامن)
-async def download_file_from_cloudinary():
-    url = f"https://res.cloudinary.com/{CLOUDINARY_CLOUD_NAME}/raw/upload/v1/keys/ky.txt"
+# تنزيل الملف من Cloudinary
+def download_file_from_cloudinary():
     try:
-        async with aiohttp.ClientSession() as session:
-            async with session.get(url) as response:
-                if response.status == 200:
-                    file_content = await response.text()
-                    return file_content
-                else:
-                    raise Exception("Failed to download file from Cloudinary")
+        response = requests.get(CLOUDINARY_URL)
+        if response.status_code == 200:
+            return json.loads(response.text)
+        else:
+            raise Exception("Failed to download file from Cloudinary")
     except Exception as e:
         print(f"Error downloading file: {e}")
-        return None
+        return {}
+
+# رفع الملف إلى Cloudinary
+def upload_file_to_cloudinary(data):
+    upload_url = f"https://api.cloudinary.com/v1_1/{CLOUDINARY_CLOUD_NAME}/raw/upload"
+    files = {
+        "file": ("ky.txt", json.dumps(data), "application/json"),
+        "upload_preset": "your_upload_preset"  # استبدل بـ upload preset الخاص بك
+    }
+    headers = {
+        "Authorization": f"Basic {CLOUDINARY_API_KEY}:{CLOUDINARY_API_SECRET}"
+    }
+    response = requests.post(upload_url, files=files, headers=headers)
+    if response.status_code != 200:
+        raise Exception("Failed to upload file to Cloudinary")
 
 # نقطة النهاية لعرض المفاتيح
 @app.route('/keys', methods=['GET'])
-async def get_keys():
-    file_content = await download_file_from_cloudinary()
-    if not file_content:
-        return jsonify({"status": "error", "message": "Failed to fetch keys"}), 500
-
-    # تحويل المحتوى إلى قاموس
-    keys = {}
-    for line in file_content.splitlines():
-        if "=" in line:
-            key_name, key_value = line.split("=")
-            keys[key_name.strip()] = key_value.strip().strip('"')
-
-    return jsonify({"status": "success", "keys": keys})
+def get_keys():
+    keys = download_file_from_cloudinary()
+    return jsonify(keys)
 
 # تشغيل التطبيق
 if __name__ == "__main__":
